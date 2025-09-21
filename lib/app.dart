@@ -20,16 +20,28 @@ Future<void> init() async {
     //   password: '296184gti',
     // ),
 
-   Endpoint(
-     host: 'metro.proxy.rlwy.net',
-     port: 37194,
-     database: 'railway',
-     username: 'postgres',
-     password: 'AwxBYujuwLYerRyyuDUgJOEUSrUMJiZj',
-   ),
-      settings: const ConnectionSettings(sslMode: SslMode.verifyFull),
+  //  Endpoint(
+  //    host: 'metro.proxy.rlwy.net',
+  //    port: 37194,
+  //    database: 'railway',
+  //    username: 'postgres',
+  //    password: 'AwxBYujuwLYerRyyuDUgJOEUSrUMJiZj',
+  //  ),
+  //     settings: const ConnectionSettings(sslMode: SslMode.require),
+  //
+  // );
 
-  );
+
+      Endpoint(
+           host: 'centerbeam.proxy.rlwy.net',
+           port: 12647,
+           database: 'railway',
+           username: 'postgres',
+           password: 'VNAuXnkRGabzkWCjKoARxqZHFGEqSSFO',
+         ),
+            settings: const ConnectionSettings(sslMode: SslMode.require),
+
+        );
 
   final router = Router();
 
