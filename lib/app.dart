@@ -27,8 +27,7 @@ Future<void> init() async {
      username: 'postgres',
      password: 'AwxBYujuwLYerRyyuDUgJOEUSrUMJiZj',
    ),
-
-    settings: const ConnectionSettings(sslMode: SslMode.disable),
+      settings: const ConnectionSettings(sslMode: SslMode.require),
   );
 
   final router = Router();
