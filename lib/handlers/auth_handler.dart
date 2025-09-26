@@ -29,14 +29,14 @@ Router authHandler(Connection db) {
       final password = assembledData['password'];
 
       // Генерация токена подтверждения (email, password временно храним в токене)
-      final jwt = JWT(
-        {
-          'email': email,
-          'password': password,
-          'type': 'verify',
-        },
-        // токен будет жить 1 час
-        expiresIn: const Duration(hours: 1),
+      final jwt = JWT({
+        'email': email,
+        'password': password,
+        'type': 'verify',
+      });
+      final token = jwt.sign(
+        SecretKey(jwtSecret),
+        expiresIn: Duration(hours: 1),
       );
       final token = jwt.sign(SecretKey(jwtSecret));
 
