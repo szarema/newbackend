@@ -7,6 +7,8 @@ import 'package:shelf_router/shelf_router.dart';
 import 'package:postgres/postgres.dart';
 
 import '../utils/utils.dart';
+import '../services/email_service.dart';
+
 
 Router authHandler(Connection db) {
   final router = Router();
@@ -23,24 +25,31 @@ Router authHandler(Connection db) {
       }
 
       final assembledData = validation.assembledData;
-      final hash = AuthValidators.hashPassword(assembledData['password']);
+      final email = assembledData['email'];
+      final password = assembledData['password'];
 
-      final result = await db.execute(
-        Sql.named('''
-            INSERT INTO users (email, password_hash)
-            VALUES (@email, @password)
-            RETURNING *
-          '''),
-        parameters: {'email': assembledData['email'], 'password': hash},
+      // Генерация токена подтверждения (email, password временно храним в токене)
+      final jwt = JWT(
+        {
+          'email': email,
+          'password': password,
+          'type': 'verify',
+        },
+        // токен будет жить 1 час
+        expiresIn: const Duration(hours: 1),
       );
-
-      final user = result.first;
-      final userId = user[0] as int;
-
-      final jwt = JWT({'user_id': userId});
       final token = jwt.sign(SecretKey(jwtSecret));
 
-      return ApiResponse.ok(jsonEncode({'token': token}));
+      // Генерация ссылки подтверждения
+      final verificationLink = 'https://your-app.com/verify?token=$token';
+
+      // Отправка письма
+      final emailService = EmailService();
+      await emailService.sendVerificationEmail(email, verificationLink);
+
+      return ApiResponse.ok(
+        jsonEncode({'message': 'Письмо с подтверждением отправлено на $email'}),
+      );
     } catch (e) {
       if (e.toString().contains('23505')) {
         return ApiResponse.serverError(
@@ -66,9 +75,9 @@ Router authHandler(Connection db) {
       final assembledData = validation.assembledData;
       final result = await db.execute(
         Sql.named('''
-          SELECT id, password_hash FROM users
-          WHERE email = @email
-        '''),
+        SELECT id, password_hash, is_verified FROM users
+        WHERE email = @email
+      '''),
         parameters: {'email': assembledData['email']},
       );
 
@@ -79,6 +88,11 @@ Router authHandler(Connection db) {
       final user = result.first;
       final userId = user[0] as int;
       final storedHash = user[1] as String;
+      final isVerified = user[2] as bool;
+
+      if (!isVerified) {
+        return ApiResponse.unauthorized('Подтвердите email для входа');
+      }
 
       if (!AuthValidators.verifyPassword(
         assembledData['password'],
@@ -95,9 +109,6 @@ Router authHandler(Connection db) {
       return ApiResponse.serverError(e);
     }
   });
-
-
-
 
 
 
@@ -143,7 +154,43 @@ Router authHandler(Connection db) {
     }
   });
 
+  // Подтверждение email
+  router.get('/verify-email', (Request request) async {
+    try {
+      final params = request.url.queryParameters;
+      final token = params['token'];
 
+      if (token == null || token.isEmpty) {
+        return ApiResponse.badRequest('Отсутствует токен');
+      }
+
+      // Расшифровка токена
+      final jwt = JWT.verify(token, SecretKey(jwtSecret));
+      final email = jwt.payload['email']?.toString();
+
+      if (email == null) {
+        return ApiResponse.badRequest('Некорректный токен');
+      }
+
+      // Обновление поля is_verified в БД
+      final result = await db.execute(
+        Sql.named('''
+          UPDATE users SET is_verified = TRUE
+          WHERE email = @e
+          RETURNING id
+        '''),
+        parameters: {'e': email},
+      );
+
+      if (result.isEmpty) {
+        return ApiResponse.notFound('Пользователь не найден');
+      }
+
+      return ApiResponse.ok('Почта успешно подтверждена');
+    } catch (e) {
+      return ApiResponse.unauthorized('Невалидный или истекший токен');
+    }
+  });
 
   return router;
 }
