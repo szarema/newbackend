@@ -38,7 +38,7 @@ Router authHandler(Connection db) {
         SecretKey(jwtSecret),
         expiresIn: Duration(hours: 1),
       );
-      final token = jwt.sign(SecretKey(jwtSecret));
+      // final token = jwt.sign(SecretKey(jwtSecret));
 
       // Генерация ссылки подтверждения
       final verificationLink = 'https://your-app.com/verify?token=$token';
