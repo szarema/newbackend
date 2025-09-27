@@ -27,7 +27,14 @@ Router healthNotesHandler(Connection db) {
         return ApiResponse.ok(null);
       }
 
-      return ApiResponse.ok(jsonEncode(result.first.toColumnMap()));
+      final record = result.first.toColumnMap();
+
+      // Проверка: если запись пуста (например, содержит только id/pet_id), считаем её невалидной
+      if (record['id'] == null) {
+        return ApiResponse.ok(null);
+      }
+
+      return ApiResponse.ok(jsonEncode(record));
     } catch (e) {
       return ApiResponse.internalServerError(e);
     }
@@ -57,11 +64,11 @@ Router healthNotesHandler(Connection db) {
 
       final result = await db.execute(
         Sql.named('''
-      INSERT INTO health_notes
-      (pet_id, clinic, doctor, grooming_salon, diet)
-      VALUES (@pet_id, @clinic, @doctor, @grooming_salon, @diet)
-      RETURNING *
-      '''),
+        INSERT INTO health_notes
+        (pet_id, clinic, doctor, grooming_salon, diet)
+        VALUES (@pet_id, @clinic, @doctor, @grooming_salon, @diet)
+        RETURNING *
+        '''),
         parameters: {'pet_id': validatedPetId, ...validation.assembledData},
       );
 
@@ -101,14 +108,14 @@ Router healthNotesHandler(Connection db) {
 
       final result = await db.execute(
         Sql.named('''
-      UPDATE health_notes SET
-        clinic = @clinic,
-        doctor = @doctor,
-        grooming_salon = @grooming_salon,
-        diet = @diet
-      WHERE id = @id
-      RETURNING *
-      '''),
+        UPDATE health_notes SET
+          clinic = @clinic,
+          doctor = @doctor,
+          grooming_salon = @grooming_salon,
+          diet = @diet
+        WHERE id = @id
+        RETURNING *
+        '''),
         parameters: {...validation.assembledData, 'id': validatedId},
       );
 
