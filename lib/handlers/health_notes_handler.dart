@@ -24,7 +24,8 @@ Router healthNotesHandler(Connection db) {
       );
 
       if (result.isEmpty) {
-        return ApiResponse.ok(null);
+        return Response(204); // No Content
+        //return ApiResponse.ok(null);
       }
 
       final record = result.first.toColumnMap();
