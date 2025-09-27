@@ -28,11 +28,21 @@ Router medicalRecordsHandler(Connection db) {
         return ApiResponse.ok(null);
       }
 
-      return ApiResponse.ok(jsonEncode(result.first.toColumnMap()));
+      final data = result.first.toColumnMap();
+
+      print('📦 Медкнижка из БД: $data'); // <--- 🔍 добавь отладку
+
+      // Проверим, есть ли поле "id"
+      if (!data.containsKey('id')) {
+        print('⚠️ ВНИМАНИЕ: поле "id" отсутствует!');
+      }
+
+      return ApiResponse.ok(jsonEncode(data));
     } catch (e) {
       return ApiResponse.serverError(e);
     }
   });
+
 
   // Создание записи мед. книжки
   router.post('/', (Request request) async {
