@@ -45,11 +45,13 @@ Router authHandler(Connection db) {
 
       // Отправка письма
       final emailService = EmailService();
-      await emailService.sendVerificationEmail(email, verificationLink);
+      // await emailService.sendVerificationEmail(email, verificationLink);
 
-      return ApiResponse.ok(
-        jsonEncode({'message': 'Письмо с подтверждением отправлено на $email'}),
-      );
+      return ApiResponse.ok(jsonEncode({'token': token}));
+
+      // return ApiResponse.ok(
+      //  jsonEncode({'message': 'Письмо с подтверждением отправлено на $email'}),
+     //  );
     } catch (e) {
       if (e.toString().contains('23505')) {
         return ApiResponse.serverError(
