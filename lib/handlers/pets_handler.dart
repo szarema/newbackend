@@ -151,7 +151,7 @@ Router petsHandler(Connection db) {
       String? name;
       String? breed;
       String? gender;
-      String? birthDate;
+      DateTime? birthDate;
       int? weight;
 
       for (final part in parts) {
@@ -172,7 +172,8 @@ Router petsHandler(Connection db) {
           } else if (contentDisposition.contains('name="gender"')) {
             gender = await utf8.decoder.bind(part).join();
           } else if (contentDisposition.contains('name="birth_date"')) {
-            birthDate = await utf8.decoder.bind(part).join();
+            final birthStr = await utf8.decoder.bind(part).join();
+            birthDate = DateTime.tryParse(birthStr);
           } else if (contentDisposition.contains('name="weight"')) {
             weight = int.tryParse(await utf8.decoder.bind(part).join());
           }
