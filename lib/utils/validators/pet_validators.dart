@@ -14,7 +14,7 @@ class PetValidators {
     }
 
     _validateGender(data, errors);
-    _validateBirthDate(data, errors); // ✅ новая проверка
+    _validateBirthDate(data, errors); //  новая проверка
     _validateWeight(data, errors);
     _validateBreed(data, errors);
 
@@ -37,7 +37,7 @@ class PetValidators {
     }
   }
 
-  /// ✅ Новая проверка birth_date
+  ///  Новая проверка birth_date
   static void _validateBirthDate(Map data, Map<String, String> errors) {
     if (!data.containsKey('birth_date')) return;
 
@@ -90,13 +90,13 @@ class PetValidators {
     return int.tryParse(valueStr);
   }
 
-  /// ✅ Сбор данных
+  ///  Сбор данных
   static Map<String, dynamic> _assembleData(Map data) {
     return {
       'name': data['name']?.toString().trim(),
       'breed': data['breed']?.toString().trim(),
       'gender': data['gender']?.toString().toLowerCase().trim(),
-      'birth_date': data['birth_date']?.toString().trim(), // ✅
+      'birth_date': data['birth_date']?.toString().trim(), //
       'weight': _parseNumber(data['weight']),
     };
   }

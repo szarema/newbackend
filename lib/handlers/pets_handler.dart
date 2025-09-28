@@ -193,20 +193,21 @@ Router petsHandler(Connection db) {
 
       final result = await db.execute(
         Sql.named('''
-        INSERT INTO pets (user_id, name, breed, gender, birth_date, weight, photo_url)
-        VALUES (@userId, @name, @breed, @gender, @birth_date, @weight, @photo_url)
-        RETURNING *
-      '''),
+    INSERT INTO pets (user_id, name, breed, gender, birth_date, weight, photo_url)
+    VALUES (@userId, @name, @breed, @gender, @birth_date, @weight, @photo_url)
+    RETURNING *
+  '''),
         parameters: {
           'userId': userId,
           'name': name,
           'breed': breed,
           'gender': gender,
-          'birth_date': birthDate,
+          'birth_date': birthDate?.toIso8601String(),
           'weight': weight,
           'photo_url': photoUrl,
         },
       );
+
 
       return ApiResponse.ok(result.first.toColumnMap());
     } catch (e) {
