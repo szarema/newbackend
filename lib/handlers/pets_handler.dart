@@ -208,8 +208,12 @@ Router petsHandler(Connection db) {
         },
       );
 
+// 👇 Сериализация даты перед возвратом клиенту
+      final pet = result.first.toColumnMap();
+      pet['birth_date'] = (pet['birth_date'] as DateTime?)?.toIso8601String();
 
-      return ApiResponse.ok(result.first.toColumnMap());
+      return ApiResponse.ok(pet);
+
     } catch (e) {
       return ApiResponse.internalServerError(e);
     }
