@@ -1,8 +1,6 @@
 import 'validation_result.dart';
 
 class PetValidators {
-  static const minAge = 0;
-  static const maxAge = 100;
   static const minWeight = 1;
   static const maxWeight = 999;
   static const maxBreedLength = 100;
@@ -16,7 +14,7 @@ class PetValidators {
     }
 
     _validateGender(data, errors);
-    _validateAge(data, errors);
+    _validateBirthDate(data, errors); // ✅ новая проверка
     _validateWeight(data, errors);
     _validateBreed(data, errors);
 
@@ -34,22 +32,26 @@ class PetValidators {
     if (gender != null && gender.isNotEmpty) {
       if (!allowedGenders.contains(gender)) {
         errors['gender'] =
-            'Неверно указан гендер. Допустимые значения: ${allowedGenders.join(', ')}';
+        'Неверно указан гендер. Допустимые значения: ${allowedGenders.join(', ')}';
       }
     }
   }
 
-  static void _validateAge(Map data, Map<String, String> errors) {
-    if (!data.containsKey('age')) return;
+  /// ✅ Новая проверка birth_date
+  static void _validateBirthDate(Map data, Map<String, String> errors) {
+    if (!data.containsKey('birth_date')) return;
 
-    final age = _parseNumber(data['age']);
-    if (age == null) {
-      errors['age'] = 'Некорректный формат возраста';
+    final birthDateStr = data['birth_date']?.toString().trim();
+    if (birthDateStr == null || birthDateStr.isEmpty) {
+      errors['birth_date'] = 'Дата рождения обязательна';
       return;
     }
 
-    if (age < minAge || age > maxAge) {
-      errors['age'] = 'Возраст должен быть между $minAge и $maxAge';
+    // Проверим формат YYYY-MM-DD
+    final regex = RegExp(r'^\d{4}-\d{2}-\d{2}$');
+    if (!regex.hasMatch(birthDateStr)) {
+      errors['birth_date'] =
+      'Неверный формат даты рождения. Используйте YYYY-MM-DD';
     }
   }
 
@@ -75,7 +77,7 @@ class PetValidators {
     if (breed != null && breed.isNotEmpty) {
       if (breed.length > maxBreedLength) {
         errors['breed'] =
-            'Максимальная длина породы - $maxBreedLength символов';
+        'Максимальная длина породы - $maxBreedLength символов';
       }
     }
   }
@@ -88,12 +90,13 @@ class PetValidators {
     return int.tryParse(valueStr);
   }
 
+  /// ✅ Сбор данных
   static Map<String, dynamic> _assembleData(Map data) {
     return {
       'name': data['name']?.toString().trim(),
       'breed': data['breed']?.toString().trim(),
       'gender': data['gender']?.toString().toLowerCase().trim(),
-      'age': _parseNumber(data['age']),
+      'birth_date': data['birth_date']?.toString().trim(), // ✅
       'weight': _parseNumber(data['weight']),
     };
   }

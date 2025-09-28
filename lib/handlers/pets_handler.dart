@@ -1,15 +1,14 @@
 import 'dart:convert';
+import 'dart:io';
+
 import 'package:shelf/shelf.dart';
 import 'package:shelf_router/shelf_router.dart';
 import 'package:postgres/postgres.dart';
-
-import '../utils/utils.dart';
-import 'dart:io';
-import 'dart:convert';
 import 'package:http_parser/http_parser.dart';
 import 'package:mime/mime.dart';
 import 'package:shelf_multipart/multipart.dart';
 
+import '../utils/utils.dart';
 
 Router petsHandler(Connection db) {
   final router = Router();
@@ -46,15 +45,14 @@ Router petsHandler(Connection db) {
 
     final result = await db.execute(
       Sql.named('''
-        INSERT INTO pets (user_id, name, breed, gender, age, weight)
-        VALUES (@userId, @name, @breed, @gender, @age, @weight)
+        INSERT INTO pets (user_id, name, breed, gender, birth_date, weight)
+        VALUES (@userId, @name, @breed, @gender, @birth_date, @weight)
         RETURNING *
       '''),
       parameters: {'userId': userId, ...validation.assembledData},
     );
 
-    final resultMap = result.first.toColumnMap();
-    return ApiResponse.ok(resultMap);
+    return ApiResponse.ok(result.first.toColumnMap());
   });
 
   // Обновление питомца
@@ -75,7 +73,7 @@ Router petsHandler(Connection db) {
     final fields = <String>[];
     final parameters = <String, dynamic>{'id': petId, 'user_id': userId};
 
-    for (final field in ['name', 'breed', 'gender', 'age', 'weight']) {
+    for (final field in ['name', 'breed', 'gender', 'birth_date', 'weight']) {
       if (assembledData.containsKey(field)) {
         fields.add('$field = @$field');
         parameters[field] = assembledData[field];
@@ -100,8 +98,7 @@ Router petsHandler(Connection db) {
       return ApiResponse.notFound('Питомец не найден или не принадлежит вам');
     }
 
-    final resultMap = result.first.toColumnMap();
-    return ApiResponse.ok(resultMap);
+    return ApiResponse.ok(result.first.toColumnMap());
   });
 
   // Удаление питомца
@@ -154,7 +151,7 @@ Router petsHandler(Connection db) {
       String? name;
       String? breed;
       String? gender;
-      int? age;
+      String? birthDate;
       int? weight;
 
       for (final part in parts) {
@@ -174,15 +171,15 @@ Router petsHandler(Connection db) {
             breed = await utf8.decoder.bind(part).join();
           } else if (contentDisposition.contains('name="gender"')) {
             gender = await utf8.decoder.bind(part).join();
-          } else if (contentDisposition.contains('name="age"')) {
-            age = int.tryParse(await utf8.decoder.bind(part).join());
+          } else if (contentDisposition.contains('name="birth_date"')) {
+            birthDate = await utf8.decoder.bind(part).join();
           } else if (contentDisposition.contains('name="weight"')) {
             weight = int.tryParse(await utf8.decoder.bind(part).join());
           }
         }
       }
 
-      if (name == null || gender == null || age == null || weight == null) {
+      if (name == null || gender == null || birthDate == null || weight == null) {
         return ApiResponse.badRequest('Обязательные поля отсутствуют');
       }
 
@@ -195,8 +192,8 @@ Router petsHandler(Connection db) {
 
       final result = await db.execute(
         Sql.named('''
-        INSERT INTO pets (user_id, name, breed, gender, age, weight, photo_url)
-        VALUES (@userId, @name, @breed, @gender, @age, @weight, @photo_url)
+        INSERT INTO pets (user_id, name, breed, gender, birth_date, weight, photo_url)
+        VALUES (@userId, @name, @breed, @gender, @birth_date, @weight, @photo_url)
         RETURNING *
       '''),
         parameters: {
@@ -204,7 +201,7 @@ Router petsHandler(Connection db) {
           'name': name,
           'breed': breed,
           'gender': gender,
-          'age': age,
+          'birth_date': birthDate,
           'weight': weight,
           'photo_url': photoUrl,
         },

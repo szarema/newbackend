@@ -5,7 +5,7 @@ class Pet {
     required this.name,
     required this.breed,
     required this.gender,
-    required this.age,
+    required this.birthDate,
     required this.weight,
   });
 
@@ -14,7 +14,7 @@ class Pet {
   final String name;
   final String? breed;
   final String? gender;
-  final int? age;
+  final DateTime? birthDate;
   final int? weight;
 
   factory Pet.fromMap(Map<String, dynamic> map) {
@@ -24,7 +24,7 @@ class Pet {
       name: map['name'],
       breed: map['breed'],
       gender: map['gender'],
-      age: map['age'],
+      birthDate: map['birth_date'] != null ? DateTime.tryParse(map['birth_date']) : null,
       weight: map['weight'],
     );
   }
@@ -36,7 +36,7 @@ class Pet {
       'name': name,
       'breed': breed,
       'gender': gender,
-      'age': age,
+      'birth_date': birthDate?.toIso8601String(),
       'weight': weight,
     };
   }
