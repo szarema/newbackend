@@ -5,8 +5,9 @@ class ApiResponse {
   static const headers = {'Content-Type': 'application/json'};
 
   static Response ok(Object? body) {
-    // Если body уже строка (например, jsonEncode был сделан раньше), не кодируем повторно
-    final jsonBody = body is String ? body : jsonEncode(body ?? {});
+    final jsonBody = body is String
+        ? body
+        : jsonEncode(_serializeData(body ?? {})); // 👈 добавили сериализацию
     return Response.ok(jsonBody, headers: headers);
   }
 
@@ -36,4 +37,17 @@ class ApiResponse {
         }),
         headers: headers,
       );
+
+  /// 🔥 сериализация DateTime
+  static dynamic _serializeData(dynamic data) {
+    if (data is DateTime) {
+      return data.toIso8601String();
+    } else if (data is List) {
+      return data.map(_serializeData).toList();
+    } else if (data is Map) {
+      return data.map((k, v) => MapEntry(k, _serializeData(v)));
+    } else {
+      return data;
+    }
+  }
 }
