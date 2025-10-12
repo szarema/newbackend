@@ -19,12 +19,33 @@ Future<Response> postMessageHandler(Request request) async {
     return Response(400, body: 'Missing required fields');
   }
 
+  final userId = data['user_id'];
+
+  // 🔍 Фильтр сообщения за последние 14 дней
+  final now = DateTime.now();
+  final fourteenDaysAgo = now.subtract(const Duration(days: 14));
+
+  final recentMessages = assistantMessages.where((msg) {
+    return msg['user_id'] == userId &&
+        DateTime.parse(msg['created_at']).isAfter(fourteenDaysAgo);
+  }).toList();
+
+  if (recentMessages.length >= 20) {
+    return Response(
+      429,
+      body: jsonEncode({
+        'error': 'Вы достигли лимита запросов. Следующие 20 сообщений будут доступны через 14 дней с момента первого израсходованного запроса.'
+      }),
+      headers: {'Content-Type': 'application/json'},
+    );
+  }
+
   final message = {
     'id': assistantMessages.length + 1,
-    'user_id': data['user_id'],
+    'user_id': userId,
     'role': data['role'],
     'message': data['message'],
-    'created_at': DateTime.now().toIso8601String(),
+    'created_at': now.toIso8601String(),
   };
 
   assistantMessages.add(message);
@@ -33,8 +54,6 @@ Future<Response> postMessageHandler(Request request) async {
     'Content-Type': 'application/json',
   });
 }
-
-/// <------ ДОБАВЬ ЭТУ ФУНКЦИЮ --------->
 
 Router assistantMessagesHandler(Connection db) {
   final router = Router();
