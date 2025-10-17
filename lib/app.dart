@@ -84,7 +84,7 @@ Future<void> init() async {
 
   router.mount(
     '/assistant',
-    assistantMessagesHandler(db).call,
+    assistantMessagesHandler(db),
   );
 
   // router.mount('/assistant', assistantMessagesHandler(db).call);
