@@ -15,7 +15,7 @@ Future<Response> getMessagesHandler(Request request, Connection db) async {
         'user_id': row[1],
         'role': row[2],
         'message': row[3],
-        'created_at': (row[4] as DateTime?)?.toIso8601String(),
+        'created_at': (row[4] as DateTime?).toString(),
       };
     }).toList();
 
@@ -80,7 +80,7 @@ Future<Response> postMessageHandler(Request request, Connection db) async {
       'user_id': userId,
       'role': role,
       'message': message,
-      'created_at': (inserted[1] as DateTime).toIso8601String(),
+      'created_at': (inserted[1] as DateTime).toString(),
     };
 
     return Response(201, body: jsonEncode(newMessage), headers: {
@@ -96,11 +96,11 @@ Future<Response> postMessageHandler(Request request, Connection db) async {
 Router assistantMessagesHandler(Connection db) {
   final router = Router();
 
-  // router.get('/', (Request req) => getMessagesHandler(req, db));
-  // router.post('/', (Request req) => postMessageHandler(req, db));
+  router.get('/', (Request req) => getMessagesHandler(req, db));
+  router.post('/', (Request req) => postMessageHandler(req, db));
 
-  router.get('/messages', getMessagesHandler);
-  router.post('/messages', postMessageHandler);
+  // router.get('/messages', getMessagesHandler);
+  // router.post('/messages', postMessageHandler);
 
   return router;
 }
