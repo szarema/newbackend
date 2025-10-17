@@ -3,70 +3,101 @@ import 'package:shelf/shelf.dart';
 import 'package:shelf_router/shelf_router.dart';
 import 'package:postgres/postgres.dart';
 
-final assistantMessages = <Map<String, dynamic>>[];
+Future<Response> getMessagesHandler(Request request, Connection db) async {
+  try {
+    final result = await db.execute(
+      Sql.named('SELECT * FROM assistant_messages ORDER BY created_at DESC'),
+    );
 
-// Обработчик GET-запроса — получить все сообщения
-Future<Response> getMessagesHandler(Request request) async {
-  return Response.ok(jsonEncode(assistantMessages), headers: {
-    'Content-Type': 'application/json',
-  });
-}
+    final messages = result.map((row) {
+      return {
+        'id': row[0],
+        'user_id': row[1],
+        'role': row[2],
+        'message': row[3],
+        'created_at': (row[4] as DateTime?)?.toIso8601String(),
+      };
+    }).toList();
 
-// Обработчик POST-запроса — добавить новое сообщение
-Future<Response> postMessageHandler(Request request) async {
-  final body = await request.readAsString();
-  final data = jsonDecode(body);
-
-  if (!data.containsKey('user_id') ||
-      !data.containsKey('role') ||
-      !data.containsKey('message')) {
-    return Response(400, body: 'Missing required fields');
-  }
-
-  final userId = data['user_id'];
-
-  // 🔍 Ограничение: 20 сообщений за последние 14 дней
-  final now = DateTime.now();
-  final fourteenDaysAgo = now.subtract(const Duration(days: 14));
-
-  final recentMessages = assistantMessages.where((msg) {
-    return msg['user_id'] == userId &&
-        DateTime.parse(msg['created_at']).isAfter(fourteenDaysAgo);
-  }).toList();
-
-  if (recentMessages.length >= 20) {
-    return Response(
-      429,
-      body: jsonEncode({
-        'error':
-        'Вы достигли лимита запросов. Следующие 20 сообщений будут доступны через 14 дней с момента первого израсходованного запроса.'
-      }),
-      headers: {'Content-Type': 'application/json'},
+    return Response.ok(jsonEncode(messages), headers: {
+      'Content-Type': 'application/json',
+    });
+  } catch (e) {
+    return Response.internalServerError(
+      body: jsonEncode({'error': 'Database error: $e'}),
     );
   }
-
-  final message = {
-    'id': assistantMessages.length + 1,
-    'user_id': userId,
-    'role': data['role'],
-    'message': data['message'],
-    'created_at': now.toIso8601String(),
-  };
-
-  assistantMessages.add(message);
-
-  return Response(201, body: jsonEncode(message), headers: {
-    'Content-Type': 'application/json',
-  });
 }
 
-// Роутер для маршрутов ассистента
+Future<Response> postMessageHandler(Request request, Connection db) async {
+  try {
+    final body = await request.readAsString();
+    final data = jsonDecode(body);
+
+    if (!data.containsKey('user_id') ||
+        !data.containsKey('role') ||
+        !data.containsKey('message')) {
+      return Response(400, body: 'Missing required fields');
+    }
+
+    final userId = data['user_id'];
+    final role = data['role'];
+    final message = data['message'];
+
+    // Подсчет сообщений за последние 14 дней
+    final result = await db.execute(Sql.named('''
+      SELECT COUNT(*) FROM assistant_messages
+      WHERE user_id = @user_id AND created_at > NOW() - INTERVAL '14 days'
+    '''), parameters: {'user_id': userId});
+
+    final count = result.first[0] as int;
+
+    if (count >= 20) {
+      return Response(
+        429,
+        body: jsonEncode({
+          'error':
+          'Вы достигли лимита запросов. Следующие 20 сообщений будут доступны через 14 дней с момента первого израсходованного запроса.'
+        }),
+        headers: {'Content-Type': 'application/json'},
+      );
+    }
+
+    final insertResult = await db.execute(Sql.named('''
+      INSERT INTO assistant_messages (user_id, role, message)
+      VALUES (@user_id, @role, @message)
+      RETURNING id, created_at
+    '''), parameters: {
+      'user_id': userId,
+      'role': role,
+      'message': message,
+    });
+
+    final inserted = insertResult.first;
+
+    final newMessage = {
+      'id': inserted[0],
+      'user_id': userId,
+      'role': role,
+      'message': message,
+      'created_at': (inserted[1] as DateTime).toIso8601String(),
+    };
+
+    return Response(201, body: jsonEncode(newMessage), headers: {
+      'Content-Type': 'application/json',
+    });
+  } catch (e) {
+    return Response.internalServerError(
+      body: jsonEncode({'error': 'Database error: $e'}),
+    );
+  }
+}
+
 Router assistantMessagesHandler(Connection db) {
   final router = Router();
 
-  // ✅ Вот эти два маршрута нужны
-  router.get('/messages', getMessagesHandler);
-  router.post('/messages', postMessageHandler);
+  router.get('/', (Request req) => getMessagesHandler(req, db));
+  router.post('/', (Request req) => postMessageHandler(req, db));
 
   return router;
 }
