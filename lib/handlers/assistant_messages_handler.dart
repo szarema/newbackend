@@ -52,7 +52,7 @@ Future<Response> postMessageHandler(Request request, Connection db) async {
 
     final count = result.first[0] as int;
 
-    if (count >= 20) {
+    if (count >= 5) {
       return Response(
         429,
         body: jsonEncode({
