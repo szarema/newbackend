@@ -5,23 +5,27 @@ import 'package:postgres/postgres.dart';
 
 final assistantMessages = <Map<String, dynamic>>[];
 
+// Обработчик GET-запроса — получить все сообщения
 Future<Response> getMessagesHandler(Request request) async {
   return Response.ok(jsonEncode(assistantMessages), headers: {
     'Content-Type': 'application/json',
   });
 }
 
+// Обработчик POST-запроса — добавить новое сообщение
 Future<Response> postMessageHandler(Request request) async {
   final body = await request.readAsString();
   final data = jsonDecode(body);
 
-  if (!data.containsKey('user_id') || !data.containsKey('role') || !data.containsKey('message')) {
+  if (!data.containsKey('user_id') ||
+      !data.containsKey('role') ||
+      !data.containsKey('message')) {
     return Response(400, body: 'Missing required fields');
   }
 
   final userId = data['user_id'];
 
-  // 🔍 Фильтр сообщения за последние 14 дней
+  // 🔍 Ограничение: 20 сообщений за последние 14 дней
   final now = DateTime.now();
   final fourteenDaysAgo = now.subtract(const Duration(days: 14));
 
@@ -34,7 +38,8 @@ Future<Response> postMessageHandler(Request request) async {
     return Response(
       429,
       body: jsonEncode({
-        'error': 'Вы достигли лимита запросов. Следующие 20 сообщений будут доступны через 14 дней с момента первого израсходованного запроса.'
+        'error':
+        'Вы достигли лимита запросов. Следующие 20 сообщений будут доступны через 14 дней с момента первого израсходованного запроса.'
       }),
       headers: {'Content-Type': 'application/json'},
     );
@@ -55,11 +60,13 @@ Future<Response> postMessageHandler(Request request) async {
   });
 }
 
+// Роутер для маршрутов ассистента
 Router assistantMessagesHandler(Connection db) {
   final router = Router();
 
-  router.get('/', getMessagesHandler);
-  router.post('/', postMessageHandler);
+  // ✅ Вот эти два маршрута нужны
+  router.get('/messages', getMessagesHandler);
+  router.post('/messages', postMessageHandler);
 
   return router;
 }

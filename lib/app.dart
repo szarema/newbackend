@@ -89,6 +89,7 @@ Future<void> init() async {
 
   router.mount('/assistant', assistantMessagesHandler(db).call);
 
+
   final handler = const Pipeline()
       .addMiddleware(logRequests())
       .addMiddleware(corsHeaders())
