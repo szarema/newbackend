@@ -63,14 +63,17 @@ Future<Response> postMessageHandler(Request request, Connection db) async {
       );
     }
 
+    final createdAt = data['created_at'];
+
     final insertResult = await db.execute(Sql.named('''
-      INSERT INTO assistant_messages (user_id, role, message)
-      VALUES (@user_id, @role, @message)
-      RETURNING id, created_at
-    '''), parameters: {
+  INSERT INTO assistant_messages (user_id, role, message, created_at)
+  VALUES (@user_id, @role, @message, @created_at)
+  RETURNING id, created_at
+'''), parameters: {
       'user_id': userId,
       'role': role,
       'message': message,
+      'created_at': DateTime.parse(createdAt),
     });
 
     final inserted = insertResult.first;
