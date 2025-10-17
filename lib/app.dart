@@ -5,7 +5,6 @@ import 'package:shelf/shelf_io.dart';
 import 'package:shelf_router/shelf_router.dart';
 import 'package:shelf_cors_headers/shelf_cors_headers.dart';
 import 'package:postgres/postgres.dart';
-
 import 'handlers/handlers.dart';
 
 late final Connection db;
@@ -73,6 +72,19 @@ Future<void> init() async {
         .addMiddleware(checkAuth())
         .addMiddleware(authGuard())
         .addHandler(notesHandler(db).call),
+  );
+
+  // router.mount(
+  //   '/assistant',
+  //   Pipeline()
+  //       .addMiddleware(checkAuth())
+  //       .addMiddleware(authGuard())
+  //       .addHandler(assistantMessagesHandler(db).call),
+  // );
+
+  router.mount(
+    '/assistant',
+    assistantMessagesHandler(db).call,
   );
 
   final handler = const Pipeline()
