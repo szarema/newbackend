@@ -74,18 +74,18 @@ Future<void> init() async {
         .addHandler(notesHandler(db).call),
   );
 
-  // router.mount(
-  //   '/assistant',
-  //   Pipeline()
-  //       .addMiddleware(checkAuth())
-  //       .addMiddleware(authGuard())
-  //       .addHandler(assistantMessagesHandler(db).call),
-  // );
-
   router.mount(
     '/assistant',
-    assistantMessagesHandler(db).call,
+    Pipeline()
+        .addMiddleware(checkAuth())
+        .addMiddleware(authGuard())
+        .addHandler(assistantMessagesHandler(db).call),
   );
+
+  // router.mount(
+  //   '/assistant',
+  //   assistantMessagesHandler(db).call,
+  // );
 
   final handler = const Pipeline()
       .addMiddleware(logRequests())
