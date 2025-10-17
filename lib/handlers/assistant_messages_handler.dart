@@ -96,8 +96,11 @@ Future<Response> postMessageHandler(Request request, Connection db) async {
 Router assistantMessagesHandler(Connection db) {
   final router = Router();
 
-  router.get('/', (Request req) => getMessagesHandler(req, db));
-  router.post('/', (Request req) => postMessageHandler(req, db));
+  // router.get('/', (Request req) => getMessagesHandler(req, db));
+  // router.post('/', (Request req) => postMessageHandler(req, db));
+
+  router.get('/messages', getMessagesHandler);
+  router.post('/messages', postMessageHandler);
 
   return router;
 }
