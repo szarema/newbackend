@@ -44,11 +44,20 @@ Future<Response> postMessageHandler(Request request, Connection db) async {
     final role = data['role'];
     final message = data['message'];
 
-    // Подсчет сообщений за последние 14 дней
+    // final result = await db.execute(Sql.named('''
+    //   SELECT COUNT(*) FROM assistant_messages
+    //   WHERE user_id = @user_id AND created_at > NOW() - INTERVAL '14 days'
+    // '''), parameters: {'user_id': userId});
+
+
+    // Подсчет только user‑сообщений за последние 14 дней
     final result = await db.execute(Sql.named('''
       SELECT COUNT(*) FROM assistant_messages
-      WHERE user_id = @user_id AND created_at > NOW() - INTERVAL '14 days'
+      WHERE user_id = @user_id
+      AND role = 'user'
+      AND created_at > NOW() - INTERVAL '14 days'
     '''), parameters: {'user_id': userId});
+
 
     final count = result.first[0] as int;
 
@@ -57,7 +66,7 @@ Future<Response> postMessageHandler(Request request, Connection db) async {
         429,
         body: jsonEncode({
           'error':
-          'Вы достигли лимита запросов. Следующие 20 сообщений будут доступны через 14 дней с момента первого израсходованного запроса.'
+          'Вы достигли лимита запросов. Следующие сообщения будут доступны через 14 дней с момента первого израсходованного запроса.'
         }),
         headers: {'Content-Type': 'application/json'},
       );
