@@ -8,7 +8,6 @@ import 'package:dart_jsonwebtoken/dart_jsonwebtoken.dart';
 import '../constants/jwt_secret.dart';
 import '../prompt/prompt_text.dart';
 
-/// Извлекаем user_id из JWT токена
 int? getUserIdFromToken(Request request) {
   final authHeader = request.headers['Authorization'];
   if (authHeader == null || !authHeader.startsWith('Bearer ')) return null;
@@ -22,7 +21,6 @@ int? getUserIdFromToken(Request request) {
   }
 }
 
-/// Получение сообщений только текущего пользователя
 Future<Response> getMessagesHandler(Request request, Connection db) async {
   try {
     final userId = getUserIdFromToken(request);
@@ -54,7 +52,6 @@ Future<Response> getMessagesHandler(Request request, Connection db) async {
   }
 }
 
-/// Сохранение сообщений и запрос к DeepSeek
 Future<Response> postMessageHandler(Request request, Connection db) async {
   try {
     final userId = getUserIdFromToken(request);
@@ -72,7 +69,6 @@ Future<Response> postMessageHandler(Request request, Connection db) async {
       return Response(400, body: jsonEncode({'error': 'Missing required fields'}));
     }
 
-    // Проверяем лимит только для user‑сообщений
     if (role == 'user') {
       final result = await db.execute(Sql.named('''
         SELECT COUNT(*) FROM assistant_messages
@@ -86,8 +82,7 @@ Future<Response> postMessageHandler(Request request, Connection db) async {
         return Response(
           429,
           body: jsonEncode({
-            'error':
-            'Вы достигли лимита запросов. Попробуйте снова через 14 дней.'
+            'error': 'Вы достигли лимита запросов. Попробуйте снова через 14 дней.'
           }),
           headers: {'Content-Type': 'application/json'},
         );
@@ -96,7 +91,6 @@ Future<Response> postMessageHandler(Request request, Connection db) async {
 
     final now = DateTime.now();
 
-    // Сохраняем сообщение пользователя
     if (role == 'user') {
       await db.execute(Sql.named('''
         INSERT INTO assistant_messages (user_id, role, message, created_at)
@@ -107,8 +101,9 @@ Future<Response> postMessageHandler(Request request, Connection db) async {
         'created_at': now,
       });
 
-      // --- Запрос к DeepSeek API с системным промтом ---
       final deepseekKey = Platform.environment['DEEPSEEK_API_KEY'];
+      print('🔐 DEEPSEEK_API_KEY = $deepseekKey');
+
       if (deepseekKey == null) {
         return Response.internalServerError(
             body: jsonEncode({'error': 'Missing DeepSeek API key'}));
@@ -123,6 +118,9 @@ Future<Response> postMessageHandler(Request request, Connection db) async {
         ],
       };
 
+      print('📤 payload = ${jsonEncode(payload)}');
+      print('🧠 systemPrompt = $systemPrompt');
+
       final aiResp = await http.post(uri,
           headers: {
             'Authorization': 'Bearer $deepseekKey',
@@ -130,11 +128,13 @@ Future<Response> postMessageHandler(Request request, Connection db) async {
           },
           body: jsonEncode(payload));
 
+      print('📥 Response status: ${aiResp.statusCode}');
+      print('📥 Response body: ${aiResp.body}');
+
       if (aiResp.statusCode == 200) {
         final decoded = jsonDecode(aiResp.body);
         final assistantReply = decoded['choices'][0]['message']['content'];
 
-        // Сохраняем ответ ассистента
         await db.execute(Sql.named('''
           INSERT INTO assistant_messages (user_id, role, message, created_at)
           VALUES (@user_id, 'assistant', @message, @created_at)
@@ -148,13 +148,11 @@ Future<Response> postMessageHandler(Request request, Connection db) async {
             jsonEncode({'assistant_reply': assistantReply}),
             headers: {'Content-Type': 'application/json'});
       } else {
-        print('❌ DeepSeek error: ${aiResp.body}');
         return Response.internalServerError(
             body: jsonEncode({'error': 'AI request failed'}));
       }
     }
 
-    // Для других ролей сохраняем как обычно
     final insertResult = await db.execute(Sql.named('''
       INSERT INTO assistant_messages (user_id, role, message, created_at)
       VALUES (@user_id, @role, @message, @created_at)
@@ -179,9 +177,9 @@ Future<Response> postMessageHandler(Request request, Connection db) async {
         body: jsonEncode(newMessage),
         headers: {'Content-Type': 'application/json'});
   } catch (e) {
-    print('Ошибка в postMessageHandler: $e');
+    print('❌ Ошибка в postMessageHandler: $e');
     return Response.internalServerError(
-        body: jsonEncode({'error': 'Database error: $e'}));
+        body: jsonEncode({'error': 'Internal error: $e'}));
   }
 }
 
