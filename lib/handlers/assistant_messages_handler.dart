@@ -5,6 +5,7 @@ import 'package:postgres/postgres.dart';
 import 'package:dart_jsonwebtoken/dart_jsonwebtoken.dart';
 import '../constants/jwt_secret.dart';
 
+/// Извлекаем user_id из JWT токена
 int? getUserIdFromToken(Request request) {
   final authHeader = request.headers['Authorization'];
   if (authHeader == null || !authHeader.startsWith('Bearer ')) return null;
@@ -18,11 +19,19 @@ int? getUserIdFromToken(Request request) {
   }
 }
 
+/// Получение сообщений только текущего пользователя
 Future<Response> getMessagesHandler(Request request, Connection db) async {
   try {
-    final result = await db.execute(
-      Sql.named('SELECT * FROM assistant_messages ORDER BY created_at DESC'),
-    );
+    final userId = getUserIdFromToken(request);
+    if (userId == null) {
+      return Response(401, body: jsonEncode({'error': 'Unauthorized'}));
+    }
+
+    final result = await db.execute(Sql.named('''
+      SELECT * FROM assistant_messages
+      WHERE user_id = @user_id
+      ORDER BY created_at DESC
+    '''), parameters: {'user_id': userId});
 
     final messages = result.map((row) {
       return {
@@ -44,6 +53,7 @@ Future<Response> getMessagesHandler(Request request, Connection db) async {
   }
 }
 
+/// Сохранение сообщений с проверкой лимитов
 Future<Response> postMessageHandler(Request request, Connection db) async {
   try {
     final userId = getUserIdFromToken(request);
@@ -72,6 +82,7 @@ Future<Response> postMessageHandler(Request request, Connection db) async {
 
     final count = result.first[0] as int;
 
+    // Ограничиваем только user-сообщения, ассистент всегда может сохраняться
     if (role == 'user' && count >= 5) {
       return Response(
         429,
@@ -108,6 +119,7 @@ Future<Response> postMessageHandler(Request request, Connection db) async {
       'Content-Type': 'application/json',
     });
   } catch (e) {
+    print(' Ошибка в postMessageHandler: $e');
     return Response.internalServerError(
       body: jsonEncode({'error': 'Database error: $e'}),
     );
