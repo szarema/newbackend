@@ -2,6 +2,21 @@ import 'dart:convert';
 import 'package:shelf/shelf.dart';
 import 'package:shelf_router/shelf_router.dart';
 import 'package:postgres/postgres.dart';
+import 'package:dart_jsonwebtoken/dart_jsonwebtoken.dart';
+import '../constants/jwt_secret.dart';
+
+int? getUserIdFromToken(Request request) {
+  final authHeader = request.headers['Authorization'];
+  if (authHeader == null || !authHeader.startsWith('Bearer ')) return null;
+
+  final token = authHeader.substring(7);
+  try {
+    final jwt = JWT.verify(token, SecretKey(jwtSecret));
+    return jwt.payload['user_id'] as int?;
+  } catch (e) {
+    return null;
+  }
+}
 
 Future<Response> getMessagesHandler(Request request, Connection db) async {
   try {
@@ -15,7 +30,7 @@ Future<Response> getMessagesHandler(Request request, Connection db) async {
         'user_id': row[1],
         'role': row[2],
         'message': row[3],
-        'created_at': (row[4] as DateTime?).toString(),
+        'created_at': (row[4] as DateTime?)?.toIso8601String(),
       };
     }).toList();
 
@@ -31,33 +46,29 @@ Future<Response> getMessagesHandler(Request request, Connection db) async {
 
 Future<Response> postMessageHandler(Request request, Connection db) async {
   try {
+    final userId = getUserIdFromToken(request);
+    if (userId == null) {
+      return Response(401, body: jsonEncode({'error': 'Unauthorized'}));
+    }
+
     final body = await request.readAsString();
     final data = jsonDecode(body);
 
-    if (!data.containsKey('user_id') ||
-        !data.containsKey('role') ||
-        !data.containsKey('message')) {
+    if (!data.containsKey('role') || !data.containsKey('message')) {
       return Response(400, body: 'Missing required fields');
     }
 
-    final userId = data['user_id'];
     final role = data['role'];
     final message = data['message'];
+    final createdAt = data['created_at'];
 
-    // final result = await db.execute(Sql.named('''
-    //   SELECT COUNT(*) FROM assistant_messages
-    //   WHERE user_id = @user_id AND created_at > NOW() - INTERVAL '14 days'
-    // '''), parameters: {'user_id': userId});
-
-
-    // Подсчет только user‑сообщений за последние 14 дней
+    // Подсчёт только USER-сообщений за последние 14 дней
     final result = await db.execute(Sql.named('''
       SELECT COUNT(*) FROM assistant_messages
       WHERE user_id = @user_id
-      AND role = 'user'
-      AND created_at > NOW() - INTERVAL '14 days'
+        AND role = 'user'
+        AND created_at > NOW() - INTERVAL '14 days'
     '''), parameters: {'user_id': userId});
-
 
     final count = result.first[0] as int;
 
@@ -72,13 +83,11 @@ Future<Response> postMessageHandler(Request request, Connection db) async {
       );
     }
 
-    final createdAt = data['created_at'];
-
     final insertResult = await db.execute(Sql.named('''
-  INSERT INTO assistant_messages (user_id, role, message, created_at)
-  VALUES (@user_id, @role, @message, @created_at)
-  RETURNING id, created_at
-'''), parameters: {
+      INSERT INTO assistant_messages (user_id, role, message, created_at)
+      VALUES (@user_id, @role, @message, @created_at)
+      RETURNING id, created_at
+    '''), parameters: {
       'user_id': userId,
       'role': role,
       'message': message,
@@ -92,7 +101,7 @@ Future<Response> postMessageHandler(Request request, Connection db) async {
       'user_id': userId,
       'role': role,
       'message': message,
-      'created_at': (inserted[1] as DateTime).toString(),
+      'created_at': (inserted[1] as DateTime).toIso8601String(),
     };
 
     return Response(201, body: jsonEncode(newMessage), headers: {
@@ -107,12 +116,6 @@ Future<Response> postMessageHandler(Request request, Connection db) async {
 
 Router assistantMessagesHandler(Connection db) {
   final router = Router();
-
-  // router.get('/', (Request req) => getMessagesHandler(req, db));
-  // router.post('/', (Request req) => postMessageHandler(req, db));
-
-  // router.get('/messages', getMessagesHandler);
-  // router.post('/messages', postMessageHandler);
 
   router.get('/messages', (Request req) => getMessagesHandler(req, db));
   router.post('/messages', (Request req) => postMessageHandler(req, db));
