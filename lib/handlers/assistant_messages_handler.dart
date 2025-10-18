@@ -132,7 +132,7 @@ Future<Response> postMessageHandler(Request request, Connection db) async {
       print('📥 Response body: ${aiResp.body}');
 
       if (aiResp.statusCode == 200) {
-        final decoded = jsonDecode(aiResp.body);
+        final decoded = jsonDecode(utf8.decode(aiResp.bodyBytes));
         final assistantReply = decoded['choices'][0]['message']['content'];
 
         await db.execute(Sql.named('''
