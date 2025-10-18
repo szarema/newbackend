@@ -72,28 +72,30 @@ Future<Response> postMessageHandler(Request request, Connection db) async {
     final message = data['message'];
     final createdAt = data['created_at'];
 
-    // Подсчёт только USER-сообщений за последние 14 дней
-    final result = await db.execute(Sql.named('''
-      SELECT COUNT(*) FROM assistant_messages
-      WHERE user_id = @user_id
-        AND role = 'user'
-        AND created_at > NOW() - INTERVAL '14 days'
-    '''), parameters: {'user_id': userId});
+    // ✅ Проверяем лимит ТОЛЬКО для role == 'user'
+    if (role == 'user') {
+      final result = await db.execute(Sql.named('''
+        SELECT COUNT(*) FROM assistant_messages
+        WHERE user_id = @user_id
+          AND role = 'user'
+          AND created_at > NOW() - INTERVAL '14 days'
+      '''), parameters: {'user_id': userId});
 
-    final count = result.first[0] as int;
+      final count = result.first[0] as int;
 
-    // Ограничиваем только user-сообщения, ассистент всегда может сохраняться
-    if (role == 'user' && count >= 5) {
-      return Response(
-        429,
-        body: jsonEncode({
-          'error':
-          'Вы достигли лимита запросов. Следующие сообщения будут доступны через 14 дней с момента первого израсходованного запроса.'
-        }),
-        headers: {'Content-Type': 'application/json'},
-      );
+      if (count >= 5) {
+        return Response(
+          429,
+          body: jsonEncode({
+            'error':
+            'Вы достигли лимита запросов. Следующие сообщения будут доступны через 14 дней с момента первого израсходованного запроса.'
+          }),
+          headers: {'Content-Type': 'application/json'},
+        );
+      }
     }
 
+    // ✅ Сохраняем сообщение (и user, и assistant) в БД
     final insertResult = await db.execute(Sql.named('''
       INSERT INTO assistant_messages (user_id, role, message, created_at)
       VALUES (@user_id, @role, @message, @created_at)
@@ -119,7 +121,7 @@ Future<Response> postMessageHandler(Request request, Connection db) async {
       'Content-Type': 'application/json',
     });
   } catch (e) {
-    print(' Ошибка в postMessageHandler: $e');
+    print('❌ Ошибка в postMessageHandler: $e');
     return Response.internalServerError(
       body: jsonEncode({'error': 'Database error: $e'}),
     );
