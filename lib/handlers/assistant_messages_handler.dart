@@ -75,14 +75,15 @@ Future<Response> postMessageHandler(Request request, Connection db) async {
     // ✅ Проверяем лимит ТОЛЬКО для role == 'user'
     if (role == 'user') {
       final result = await db.execute(Sql.named('''
-        SELECT COUNT(*) FROM assistant_messages
-        WHERE user_id = @user_id
-          AND role = 'user'
-          AND created_at > NOW() - INTERVAL '14 days'
-      '''), parameters: {'user_id': userId});
+    SELECT COUNT(*) FROM assistant_messages
+    WHERE user_id = @user_id
+      AND role = 'user'
+      AND created_at > NOW() - INTERVAL '14 days'
+  '''), parameters: {'user_id': userId});
 
       final count = result.first[0] as int;
 
+      // можно отправить 5 сообщений, а на 6-м уже блокируем
       if (count >= 5) {
         return Response(
           429,
