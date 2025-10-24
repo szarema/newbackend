@@ -70,11 +70,12 @@ Router authHandler(Connection db) {
       }
 
       final assembledData = validation.assembledData;
+
       final result = await db.execute(
         Sql.named('''
-        SELECT id, password_hash FROM users
-        WHERE email = @email
-      '''),
+      SELECT id, password_hash FROM users
+      WHERE email = @email
+    '''),
         parameters: {'email': assembledData['email']},
       );
 
@@ -97,7 +98,9 @@ Router authHandler(Connection db) {
       final token = jwt.sign(SecretKey(jwtSecret));
 
       return ApiResponse.ok(jsonEncode({'token': token}));
-    } catch (e) {
+    } catch (e, st) {
+      print('Ошибка в /login: $e');
+      print('Стек: $st');
       return ApiResponse.serverError(e);
     }
   });
