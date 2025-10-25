@@ -61,14 +61,17 @@ Future<Response> postMessageHandler(Request request, Connection db) async {
 
     final body = await request.readAsString();
     final data = jsonDecode(body);
+
     final role = data['role'];
     final message = data['message'];
     final createdAt = data['created_at'];
+    final selectedPetId = data['selected_pet_id'];
 
     if (role == null || message == null) {
       return Response(400, body: jsonEncode({'error': 'Missing required fields'}));
     }
 
+    // Проверяем лимит 5 запросов за 14 дней
     if (role == 'user') {
       final result = await db.execute(Sql.named('''
         SELECT COUNT(*) FROM assistant_messages
@@ -91,91 +94,116 @@ Future<Response> postMessageHandler(Request request, Connection db) async {
 
     final now = DateTime.now();
 
-    if (role == 'user') {
+    // Сохраняем сообщение пользователя
+    await db.execute(Sql.named('''
+      INSERT INTO assistant_messages (user_id, role, message, created_at)
+      VALUES (@user_id, 'user', @message, @created_at)
+    '''), parameters: {
+      'user_id': userId,
+      'message': message,
+      'created_at': now,
+    });
+
+    // Если питомец не выбран → возвращаем ответ ассистента без запроса к DeepSeek
+    if (selectedPetId == null) {
+      final reply = 'Пожалуйста, выберите питомца, чтобы я мог дать точные ответы.';
       await db.execute(Sql.named('''
         INSERT INTO assistant_messages (user_id, role, message, created_at)
-        VALUES (@user_id, 'user', @message, @created_at)
+        VALUES (@user_id, 'assistant', @message, @created_at)
       '''), parameters: {
         'user_id': userId,
-        'message': message,
+        'message': reply,
         'created_at': now,
       });
 
-      final deepseekKey = Platform.environment['DEEPSEEK_API_KEY'];
-      print('🔐 DEEPSEEK_API_KEY = $deepseekKey');
-
-      if (deepseekKey == null) {
-        return Response.internalServerError(
-            body: jsonEncode({'error': 'Missing DeepSeek API key'}));
-      }
-
-      final uri = Uri.parse('https://api.deepseek.com/v1/chat/completions');
-      final payload = {
-        'model': 'deepseek-chat',
-        'messages': [
-          {'role': 'system', 'content': systemPrompt},
-          {'role': 'user', 'content': message}
-        ],
-      };
-
-      print('📤 payload = ${jsonEncode(payload)}');
-      print('🧠 systemPrompt = $systemPrompt');
-
-      final aiResp = await http.post(uri,
-          headers: {
-            'Authorization': 'Bearer $deepseekKey',
-            'Content-Type': 'application/json',
-          },
-          body: jsonEncode(payload));
-
-      print('📥 Response status: ${aiResp.statusCode}');
-      print('📥 Response body: ${aiResp.body}');
-
-      if (aiResp.statusCode == 200) {
-        final decoded = jsonDecode(utf8.decode(aiResp.bodyBytes));
-        final assistantReply = decoded['choices'][0]['message']['content'];
-
-        await db.execute(Sql.named('''
-          INSERT INTO assistant_messages (user_id, role, message, created_at)
-          VALUES (@user_id, 'assistant', @message, @created_at)
-        '''), parameters: {
-          'user_id': userId,
-          'message': assistantReply,
-          'created_at': now,
-        });
-
-        return Response.ok(
-            jsonEncode({'assistant_reply': assistantReply}),
-            headers: {'Content-Type': 'application/json'});
-      } else {
-        return Response.internalServerError(
-            body: jsonEncode({'error': 'AI request failed'}));
-      }
+      return Response.ok(jsonEncode({'assistant_reply': reply}),
+          headers: {'Content-Type': 'application/json'});
     }
 
-    final insertResult = await db.execute(Sql.named('''
-      INSERT INTO assistant_messages (user_id, role, message, created_at)
-      VALUES (@user_id, @role, @message, @created_at)
-      RETURNING id, created_at
+    // Проверяем, существует ли питомец
+    final petResult = await db.execute(Sql.named('''
+      SELECT name, breed, gender, birth_date, weight
+      FROM pets
+      WHERE id = @pet_id AND user_id = @user_id
     '''), parameters: {
+      'pet_id': selectedPetId,
       'user_id': userId,
-      'role': role,
-      'message': message,
-      'created_at': DateTime.parse(createdAt),
     });
 
-    final inserted = insertResult.first;
-    final newMessage = {
-      'id': inserted[0],
-      'user_id': userId,
-      'role': role,
-      'message': message,
-      'created_at': (inserted[1] as DateTime).toIso8601String(),
+    if (petResult.isEmpty) {
+      final reply = 'Питомец не найден. Пожалуйста, выберите другого питомца.';
+      await db.execute(Sql.named('''
+        INSERT INTO assistant_messages (user_id, role, message, created_at)
+        VALUES (@user_id, 'assistant', @message, @created_at)
+      '''), parameters: {
+        'user_id': userId,
+        'message': reply,
+        'created_at': now,
+      });
+      return Response.ok(jsonEncode({'assistant_reply': reply}),
+          headers: {'Content-Type': 'application/json'});
+    }
+
+    final pet = petResult.first.toColumnMap();
+
+    // Формируем контекст с данными питомца 🐶
+    final petContext = '''
+Имя: ${pet['name'] ?? 'не указано'}
+Порода: ${pet['breed'] ?? 'не указана'}
+Пол: ${pet['gender'] ?? 'не указан'}
+Дата рождения: ${pet['birth_date'] ?? 'не указана'}
+Вес: ${pet['weight']?.toString() ?? 'не указан'} кг
+''';
+
+    final promptWithPet = '''
+Ты — ассистент владельца собаки. Используй информацию ниже, чтобы давать точные ответы.
+Вот данные питомца:
+$petContext
+---
+Вопрос пользователя: $message
+''';
+
+    // Запрос к DeepSeek
+    final deepseekKey = Platform.environment['DEEPSEEK_API_KEY'];
+    if (deepseekKey == null) {
+      return Response.internalServerError(
+          body: jsonEncode({'error': 'Missing DeepSeek API key'}));
+    }
+
+    final uri = Uri.parse('https://api.deepseek.com/v1/chat/completions');
+    final payload = {
+      'model': 'deepseek-chat',
+      'messages': [
+        {'role': 'system', 'content': promptWithPet}
+      ],
     };
 
-    return Response(201,
-        body: jsonEncode(newMessage),
-        headers: {'Content-Type': 'application/json'});
+    final aiResp = await http.post(uri,
+        headers: {
+          'Authorization': 'Bearer $deepseekKey',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode(payload));
+
+    if (aiResp.statusCode == 200) {
+      final decoded = jsonDecode(utf8.decode(aiResp.bodyBytes));
+      final assistantReply = decoded['choices'][0]['message']['content'];
+
+      await db.execute(Sql.named('''
+        INSERT INTO assistant_messages (user_id, role, message, created_at)
+        VALUES (@user_id, 'assistant', @message, @created_at)
+      '''), parameters: {
+        'user_id': userId,
+        'message': assistantReply,
+        'created_at': now,
+      });
+
+      return Response.ok(jsonEncode({'assistant_reply': assistantReply}),
+          headers: {'Content-Type': 'application/json'});
+    } else {
+      return Response.internalServerError(
+          body: jsonEncode({'error': 'AI request failed'}));
+    }
   } catch (e) {
     print('❌ Ошибка в postMessageHandler: $e');
     return Response.internalServerError(
