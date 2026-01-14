@@ -1,54 +1,58 @@
-import 'validation_result.dart';
-
 class EventValidators {
-  static ValidationResult validateCreateEvent(Map<String, dynamic> data) {
+  static ValidationResult validateCreate(Map<String, dynamic> data) {
     final errors = <String, String>{};
     final assembled = <String, dynamic>{};
 
-    // title (обязательное)
-    final title = data['title'];
-    if (title == null || title.toString().trim().isEmpty) {
-      errors['title'] = 'Название события обязательно';
+    // title
+    if (data['title'] == null || data['title'].toString().trim().isEmpty) {
+      errors['title'] = 'Название обязательно';
     } else {
-      assembled['title'] = title.toString().trim();
+      assembled['title'] = data['title'].toString().trim();
     }
 
-    // type (обязательное)
-    final type = data['type'];
-    if (type == null || type.toString().isEmpty) {
-      errors['type'] = 'Тип события обязателен';
+    // type
+    if (data['type'] == null) {
+      errors['type'] = 'Тип обязателен';
     } else {
-      assembled['type'] = type;
+      assembled['type'] = data['type'];
     }
 
-    // event_datetime (обязательное)
-    final eventDateTime = data['event_datetime'];
-    if (eventDateTime == null) {
+    // event_datetime
+    if (data['event_datetime'] == null) {
       errors['event_datetime'] = 'Дата и время обязательны';
     } else {
-      assembled['event_datetime'] = eventDateTime;
+      final dt = DateTime.tryParse(data['event_datetime']);
+      if (dt == null) {
+        errors['event_datetime'] = 'Некорректная дата';
+      } else {
+        assembled['event_datetime'] = dt.toIso8601String();
+      }
     }
 
-    // reminder (обязательное)
-    final reminder = data['reminder'];
-    if (reminder == null) {
+    // reminder
+    if (data['reminder'] == null) {
       errors['reminder'] = 'Напоминание обязательно';
     } else {
-      assembled['reminder'] = reminder;
+      assembled['reminder'] = data['reminder'];
     }
 
-    // repeat_type (обязательное)
-    final repeatType = data['repeat_type'];
-    if (repeatType == null) {
-      errors['repeat_type'] = 'Тип повтора обязателен';
+    // repeat
+    if (data['repeat'] == null) {
+      errors['repeat'] = 'Повторение обязательно';
     } else {
-      assembled['repeat_type'] = repeatType;
+      assembled['repeat'] = data['repeat'];
     }
 
-    return ValidationResult(
-      isValid: errors.isEmpty,
-      errors: errors,
-      assembledData: assembled,
-    );
+    return ValidationResult(errors, assembled);
   }
+}
+
+/// 🔹 Вспомогательный класс
+class ValidationResult {
+  final Map<String, String> errors;
+  final Map<String, dynamic> assembledData;
+
+  ValidationResult(this.errors, this.assembledData);
+
+  bool get isValid => errors.isEmpty;
 }

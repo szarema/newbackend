@@ -8,20 +8,24 @@ import '../utils/validators/event_validators.dart';
 Router eventsHandler(Connection db) {
   final router = Router();
 
-  /// Создание события
+  /// CREATE EVENT
   router.post('/', (Request request) async {
     try {
       final userId = request.context['user_id'] as int;
 
+      // pet_id из query
+      final petIdStr = request.url.queryParameters['pet_id'];
+      final petId = int.tryParse(petIdStr ?? '');
+
+      if (petId == null) {
+        return ApiResponse.badRequest('Некорректный pet_id');
+      }
+
       final data = await Parser.parseRequestData(request);
       if (data is! Map<String, dynamic>) return data;
 
-      final petId = data['pet_id'];
-      if (petId == null) {
-        return ApiResponse.badRequest('pet_id обязателен');
-      }
-
-      final validation = EventValidators.validateCreateEvent(data);
+      // Валидация
+      final validation = EventValidators.validateCreate(data);
       if (!validation.isValid) {
         return ApiResponse.badRequest(
           validation.errors.values.join(', '),
@@ -37,7 +41,7 @@ Router eventsHandler(Connection db) {
             type,
             event_datetime,
             reminder,
-            repeat_type
+            repeat
           )
           VALUES (
             @user_id,
@@ -46,7 +50,7 @@ Router eventsHandler(Connection db) {
             @type,
             @event_datetime,
             @reminder,
-            @repeat_type
+            @repeat
           )
           RETURNING *
         '''),
