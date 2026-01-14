@@ -43,7 +43,7 @@ Router eventsHandler(Connection db) {
             type,
             event_datetime,
             reminder,
-            repeat
+            repeat_type
           )
           VALUES (
             @user_id,
