@@ -10,9 +10,10 @@ Router eventsHandler(Connection db) {
 
   /// CREATE EVENT
   router.post('/', (Request request) async {
+    print('🔥 POST /events CALLED');
+    print('Query params: ${request.url.queryParameters}');
     try {
       final userId = request.context['user_id'] as int;
-
       // pet_id из query
       final petIdStr = request.url.queryParameters['pet_id'];
       final petId = int.tryParse(petIdStr ?? '');
