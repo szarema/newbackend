@@ -23,6 +23,7 @@ Router eventsHandler(Connection db) {
       }
 
       final data = await Parser.parseRequestData(request);
+      print('📦 BODY DATA: $data');
       if (data is! Map<String, dynamic>) return data;
 
       // Валидация
@@ -64,6 +65,7 @@ Router eventsHandler(Connection db) {
 
       return ApiResponse.ok(result.first.toColumnMap());
     } catch (e) {
+      print('❌ ERROR INSERT EVENT: $e');
       return ApiResponse.internalServerError(e);
     }
   });
