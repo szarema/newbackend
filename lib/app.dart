@@ -73,6 +73,13 @@ Future<void> init() async {
         .addMiddleware(authGuard())
         .addHandler(notesHandler(db).call),
   );
+  router.mount(
+    '/events',
+    Pipeline()
+        .addMiddleware(checkAuth())
+        .addMiddleware(authGuard())
+        .addHandler(eventsHandler(db).call),
+  );
 
   router.mount(
     '/assistant',
