@@ -8,6 +8,49 @@ import '../utils/validators/event_validators.dart';
 Router eventsHandler(Connection db) {
   final router = Router();
 
+  /// UPDATE EVENT COMPLETED (checkbox)
+  router.patch('/<id>', (Request request, String id) async {
+    try {
+      final userId = request.context['user_id'] as int;
+
+      final eventId = int.tryParse(id);
+      if (eventId == null) {
+        return ApiResponse.badRequest('Некорректный id события');
+      }
+
+      final data = await Parser.parseRequestData(request);
+      if (data is! Map<String, dynamic>) return data;
+
+      final completed = data['completed'];
+      if (completed is! bool) {
+        return ApiResponse.badRequest('Поле completed должно быть boolean');
+      }
+
+      // обновляем только свой event (по user_id)
+      final result = await db.execute(
+        Sql.named('''
+          UPDATE events
+          SET completed = @completed
+          WHERE id = @id AND user_id = @user_id
+          RETURNING *
+        '''),
+        parameters: {
+          'id': eventId,
+          'user_id': userId,
+          'completed': completed,
+        },
+      );
+
+      if (result.isEmpty) {
+        return ApiResponse.notFound('Событие не найдено');
+      }
+
+      return ApiResponse.ok(result.first.toColumnMap());
+    } catch (e) {
+      return ApiResponse.internalServerError(e);
+    }
+  });
+
   /// CREATE EVENT
   router.post('/', (Request request) async {
     print('🔥 POST /events CALLED');
